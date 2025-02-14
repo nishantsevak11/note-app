@@ -4,7 +4,7 @@ import { authOptions } from '../../auth/[...nextauth]/route';
 import Note from '@/lib/models/note';
 import dbConnect from '@/lib/dbConnect';
 
-export async function GET(req, { params }) {
+export async function GET(req, context) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -12,13 +12,15 @@ export async function GET(req, { params }) {
     }
 
     await dbConnect();
-    const note = await Note.findById(params.noteId);
+    const { params } = context;
+    const noteId = params.noteId;
+    const note = await Note.findById(noteId);
 
     if (!note) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
 
-    if (note.userId !== session.user.id) {
+    if (note.userId.toString() !== session.user.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -28,7 +30,7 @@ export async function GET(req, { params }) {
   }
 }
 
-export async function PUT(req, { params }) {
+export async function PUT(req, context) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -36,8 +38,10 @@ export async function PUT(req, { params }) {
     }
 
     await dbConnect();
+    const { params } = context;
+    const noteId = params.noteId;
     const data = await req.json();
-    const note = await Note.findById(params.noteId);
+    const note = await Note.findById(noteId);
 
     if (!note) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
@@ -69,7 +73,7 @@ export async function PUT(req, { params }) {
 
     // Update the note with validation
     const updatedNote = await Note.findByIdAndUpdate(
-      params.noteId,
+      noteId,
       updateData,
       { 
         new: true,
@@ -86,7 +90,7 @@ export async function PUT(req, { params }) {
   }
 }
 
-export async function DELETE(req, { params }) {
+export async function DELETE(req, context) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -94,10 +98,10 @@ export async function DELETE(req, { params }) {
     }
 
     await dbConnect();
-    const { noteId } = params;
-
-    // Find note and verify ownership
+    const { params } = context;
+    const noteId = params.noteId;
     const note = await Note.findById(noteId);
+
     if (!note) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
@@ -114,7 +118,7 @@ export async function DELETE(req, { params }) {
   }
 }
 
-export async function PATCH(req, { params }) {
+export async function PATCH(req, context) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -122,8 +126,10 @@ export async function PATCH(req, { params }) {
     }
 
     await dbConnect();
+    const { params } = context;
+    const noteId = params.noteId;
     const data = await req.json();
-    const note = await Note.findById(params.noteId);
+    const note = await Note.findById(noteId);
 
     if (!note) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
@@ -134,7 +140,7 @@ export async function PATCH(req, { params }) {
     }
 
     const updatedNote = await Note.findByIdAndUpdate(
-      params.noteId,
+      noteId,
       { ...data },
       { new: true, runValidators: true }
     );

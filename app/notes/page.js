@@ -22,6 +22,8 @@ export default function NotesPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('updatedAt');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // Use SWR for data fetching with optimistic updates
   const { data: notes = [], error, mutate } = useSWR(
@@ -181,46 +183,72 @@ export default function NotesPage() {
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-800">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">
-              {activeFilter === 'favorites' ? 'Favorite Notes' : 'All Notes'}
-            </h1>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Note
-            </Button>
-          </div>
-
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        {/* Header section with search and sort */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 p-4 border-b border-gray-800">
+          <div className="relative w-full sm:w-96">
             <Input
               type="text"
               placeholder="Search notes..."
               value={searchQuery}
-              onChange={handleSearch}
-              className="pl-10 bg-[#2D2D2D] border-gray-700"
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#2D2D2D] border-gray-700 focus:border-blue-500"
             />
+            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          </div>
+
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <select
+              value={`${sortBy}-${sortOrder}`}
+              onChange={(e) => {
+                const [newSortBy, newSortOrder] = e.target.value.split('-');
+                setSortBy(newSortBy);
+                setSortOrder(newSortOrder);
+              }}
+              className="bg-[#2D2D2D] border border-gray-700 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+            >
+              <option value="updatedAt-desc">Last Updated (Newest)</option>
+              <option value="updatedAt-asc">Last Updated (Oldest)</option>
+              <option value="title-asc">Title (A-Z)</option>
+              <option value="title-desc">Title (Z-A)</option>
+              <option value="createdAt-desc">Created (Newest)</option>
+              <option value="createdAt-asc">Created (Oldest)</option>
+            </select>
+
+            <Button onClick={() => setIsCreateDialogOpen(true)} className="whitespace-nowrap">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Note
+            </Button>
           </div>
         </div>
 
-        {/* Notes Grid */}
+        {/* Notes grid */}
         <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredNotes.map(note => (
-              <NoteCard
-                key={note._id}
-                note={note}
-                onClick={() => {
-                  setSelectedNote(note);
-                  setIsDetailOpen(true);
-                }}
-                onDelete={handleDeleteNote}
-                onFavorite={handleFavorite}
-              />
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredNotes
+              .sort((a, b) => {
+                if (sortBy === 'title') {
+                  return sortOrder === 'asc' 
+                    ? a.title.localeCompare(b.title)
+                    : b.title.localeCompare(a.title);
+                }
+                
+                const dateA = new Date(sortBy === 'updatedAt' ? (a.updatedAt || a.createdAt) : a.createdAt);
+                const dateB = new Date(sortBy === 'updatedAt' ? (b.updatedAt || b.createdAt) : b.createdAt);
+                
+                return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+              })
+              .map((note) => (
+                <NoteCard
+                  key={note._id}
+                  note={note}
+                  onClick={() => {
+                    setSelectedNote(note);
+                    setIsDetailOpen(true);
+                  }}
+                  onDelete={handleDeleteNote}
+                  onFavorite={handleFavorite}
+                />
+              ))}
           </div>
         </div>
       </div>
