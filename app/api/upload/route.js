@@ -16,6 +16,8 @@ const connectToGridFS = async () => {
   return bucket;
 };
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
@@ -49,8 +51,22 @@ export async function POST(req) {
       }, { status: 400 });
     }
 
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: 'File size exceeds 5MB limit' },
+        { status: 400 }
+      );
+    }
+
+    // Convert file to Base64
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const base64String = buffer.toString('base64');
+    const dataUrl = `data:${file.type};base64,${base64String}`;
+
     // Get file buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
+    // const buffer = Buffer.from(await file.arrayBuffer());
     
     // Connect to GridFS
     const gridFSBucket = await connectToGridFS();
@@ -85,7 +101,10 @@ export async function POST(req) {
     return NextResponse.json({ 
       fileId,
       message: 'File uploaded successfully',
-      type
+      type,
+      name: file.name,
+      data: dataUrl,
+      contentType: file.type
     });
   } catch (error) {
     console.error('Error uploading file:', error);

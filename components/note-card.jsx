@@ -3,37 +3,46 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Star, Trash2, FileText, Image, Copy, Pencil } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Star, Trash2, Copy, Pencil, FileImage } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { toast } from 'sonner';
+import CreateNoteDialog from './create-note-dialog';
 
 export function NoteCard({ note, onClick, onDelete, onFavorite }) {
   const [isHovered, setIsHovered] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const handleDelete = (e) => {
+  const handleDelete = async (e) => {
     e.stopPropagation();
-    onDelete(note._id);
+    try {
+      await onDelete(note._id);
+    } catch (error) {
+      console.error('Error deleting note:', error);
+    }
   };
 
-  const handleFavorite = (e) => {
+  const handleFavorite = async (e) => {
     e.stopPropagation();
-    onFavorite(note);
+    try {
+      await onFavorite(note);
+    } catch (error) {
+      console.error('Error updating favorite status:', error);
+    }
+  };
+
+  const handleEdit = (e) => {
+    e.stopPropagation();
+    setIsDialogOpen(true);
   };
 
   const copyToClipboard = async (e) => {
     e.stopPropagation();
     try {
       await navigator.clipboard.writeText(note.content);
-      toast.success('Copied to clipboard');
+      toast.success('Content copied to clipboard');
     } catch (error) {
-      console.error('Failed to copy:', error);
-      toast.error('Failed to copy to clipboard');
+      toast.error('Failed to copy content');
     }
-  };
-
-  const handleEdit = (e) => {
-    e.stopPropagation();
-    onClick();
   };
 
   const formatDate = (date) => {
@@ -41,80 +50,74 @@ export function NoteCard({ note, onClick, onDelete, onFavorite }) {
   };
 
   return (
-    <Card
-      onClick={onClick}
-      className="bg-[#2D2D2D] border-gray-700 p-4 cursor-pointer hover:bg-[#363636] transition-colors group relative overflow-hidden"
-    >
-      {/* Type Icon */}
-      <div className="absolute top-2 right-2 text-gray-400">
-        {note.type === 'image' ? (
-          <Image className="h-4 w-4" />
-        ) : (
-          <FileText className="h-4 w-4" />
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-white line-clamp-2 pr-6">{note.title}</h3>
-        </div>
-
-        {note.type === 'image' ? (
-          <div className="aspect-video relative overflow-hidden rounded-md bg-[#1E1E1E]">
-            <img
-              src={note.imageUrl}
-              alt={note.title}
-              className="object-cover w-full h-full"
-            />
-          </div>
-        ) : (
-          <p className="text-gray-400 text-sm line-clamp-3">{note.content}</p>
-        )}
-
-        <div className="flex items-center justify-between text-xs text-gray-400 pt-2">
-          <span>{formatDate(note.createdAt)}</span>
-          
-          <div className="flex items-center gap-2">
+    <>
+      <Card
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={onClick}
+        className="bg-[#2D2D2D] border-gray-700 p-4 cursor-pointer hover:bg-[#363636] transition-colors group relative overflow-hidden"
+      >
+        <div className="space-y-2">
+          <div className="flex justify-between items-start">
+            <h3 className="text-lg font-semibold text-white truncate pr-8">{note.title}</h3>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-gray-400 hover:text-white"
+              className={`text-yellow-500 hover:text-yellow-400 ${note.isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
               onClick={handleFavorite}
             >
-              <Star
-                className={`h-4 w-4 ${
-                  note.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''
-                }`}
-              />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-gray-400 hover:text-white"
-              onClick={copyToClipboard}
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-gray-400 hover:text-white"
-              onClick={handleEdit}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-gray-400 hover:text-red-400"
-              onClick={handleDelete}
-            >
-              <Trash2 className="h-4 w-4" />
+              <Star className={note.isFavorite ? 'fill-current' : ''} />
             </Button>
           </div>
+
+          <p className="text-gray-400 line-clamp-3">{note.content}</p>
+
+          <div className="flex justify-between items-center mt-4">
+            <span className="text-sm text-gray-500">{formatDate(note.updatedAt || note.createdAt)}</span>
+            
+            <div className={`flex gap-2 transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-white"
+                onClick={copyToClipboard}
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-white"
+                onClick={handleDelete}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-white"
+                onClick={handleEdit}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
-    </Card>
+
+        {note.images?.length > 0 && (
+          <div className="absolute top-0 right-0 w-16 h-16 -mr-8 -mt-8 bg-blue-500 rotate-45">
+            <FileImage className="absolute bottom-2 left-2 w-4 h-4 text-white transform -rotate-45" />
+          </div>
+        )}
+      </Card>
+
+      <CreateNoteDialog 
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        initialNote={note}
+        mode="edit"
+        onSubmit={onClick}
+      />
+    </>
   );
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Layout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CreateNoteDialog } from '@/components/create-note-dialog';
+import CreateNoteDialog from '@/components/create-note-dialog';
 import { NoteCard } from '@/components/note-card';
 import { NoteDetail } from '@/components/note-detail';
 import { Search } from 'lucide-react';

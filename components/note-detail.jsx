@@ -1,187 +1,224 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Star, Maximize2, Minimize2, Trash2 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { FileImage, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
 export function NoteDetail({ note, open, onOpenChange, onUpdate, onDelete }) {
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    isFavorite: false,
-    type: 'text',
-    audioUrl: '',
-    imageUrl: '',
+    images: [],
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
+  // Update form data when note or open state changes
   useEffect(() => {
-    if (note) {
+    if (note && open) {
       setFormData({
-        title: note.title || '',
-        content: note.content || '',
-        isFavorite: note.isFavorite || false,
-        type: note.type || 'text',
-        audioUrl: note.audioUrl || '',
-        imageUrl: note.imageUrl || '',
+        title: note.title,
+        content: note.content,
+        images: note.images || [],
       });
     }
-  }, [note]);
+  }, [note, open]);
 
   const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
-    if (!formData.title || !formData.content) {
-      toast.error('Please fill in all required fields');
+    e.preventDefault();
+    if (isLoading || !note) return;
+
+    if (!formData.title.trim() || !formData.content.trim()) {
+      toast.error('Please fill in both title and content');
       return;
     }
 
     try {
+      setIsLoading(true);
       await onUpdate({
         ...note,
-        ...formData,
+        title: formData.title.trim(),
+        content: formData.content.trim(),
+        images: formData.images,
       });
+      onOpenChange(false);
       toast.success('Note updated successfully');
     } catch (error) {
       console.error('Error updating note:', error);
       toast.error('Failed to update note');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!note?._id) return;
+    if (isLoading || !note) return;
 
-    if (window.confirm('Are you sure you want to delete this note?')) {
-      try {
-        await onDelete(note._id);
-        toast.success('Note deleted successfully');
-      } catch (error) {
-        console.error('Error deleting note:', error);
-        toast.error('Failed to delete note');
-      }
+    try {
+      setIsLoading(true);
+      await onDelete(note._id);
+      onOpenChange(false);
+      toast.success('Note deleted successfully');
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      toast.error('Failed to delete note');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      const reader = new FileReader();
+      
+      const imageData = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, {
+          name: file.name,
+          data: imageData,
+          contentType: file.type,
+        }],
+      }));
+      
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
-  if (!note) return null;
+  const removeImage = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+  };
 
   return (
-    <Dialog 
-      open={open} 
-      onOpenChange={(newOpen) => {
-        if (!newOpen) {
-          handleSubmit();
-          setIsFullscreen(false);
-        }
-        onOpenChange(newOpen);
-      }}
-    >
-      <DialogContent 
-        className={cn(
-          "bg-[#2D2D2D] text-white border-gray-700",
-          isFullscreen 
-            ? "fixed inset-0 w-full h-full max-w-none rounded-none p-6" 
-            : "sm:max-w-[600px] p-6"
-        )}
-      >
-        <DialogTitle className="text-lg font-semibold mb-4">Edit Note</DialogTitle>
-        <DialogDescription className="text-gray-400 mb-4">
-          Make changes to your note here. Click the expand button to view in full screen.
-        </DialogDescription>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl bg-[#2D2D2D] text-white">
+        <DialogHeader>
+          <DialogTitle>Edit Note</DialogTitle>
+          <DialogDescription>
+            Make changes to your note here. Click save when you're done.
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex items-center justify-between gap-4 mb-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="title">Title</Label>
             <Input
-              type="text"
-              placeholder="Title"
+              id="title"
               value={formData.title}
               onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              className="bg-[#1E1E1E] border-gray-700 flex-1"
+              placeholder="Note title"
+              className="bg-[#1E1E1E] border-gray-700"
             />
-            <div className="flex items-center gap-2">
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="content">Content</Label>
+            <Textarea
+              id="content"
+              value={formData.content}
+              onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+              placeholder="Note content"
+              className="h-40 bg-[#1E1E1E] border-gray-700"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Images</Label>
+            <div className="grid grid-cols-2 gap-4">
+              {formData.images.map((image, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={image.data}
+                    alt={image.name}
+                    className="w-full h-32 object-cover rounded-md"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => removeImage(index)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-4">
               <Button
                 type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setFormData(prev => ({ ...prev, isFavorite: !prev.isFavorite }))}
-                className="text-gray-400 hover:text-white"
+                variant="outline"
+                onClick={() => document.getElementById('image-upload').click()}
+                disabled={uploadingImage}
               >
-                <Star className={`h-4 w-4 ${formData.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={toggleFullscreen}
-                className="text-gray-400 hover:text-white"
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="h-4 w-4" />
+                {uploadingImage ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <Maximize2 className="h-4 w-4" />
+                  <FileImage className="w-4 h-4 mr-2" />
                 )}
+                Add Image
               </Button>
+              <input
+                id="image-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
             </div>
           </div>
 
-          <div className="space-y-4">
-            {formData.type === 'audio' && formData.audioUrl && (
-              <div className="w-full">
-                <audio controls className="w-full">
-                  <source src={formData.audioUrl} type="audio/webm" />
-                  Your browser does not support the audio element.
-                </audio>
-              </div>
-            )}
-
-            {formData.type === 'image' && formData.imageUrl && (
-              <div className="w-full">
-                <img
-                  src={formData.imageUrl}
-                  alt={formData.title}
-                  className={cn(
-                    "w-full rounded-lg object-cover",
-                    isFullscreen ? "max-h-[60vh]" : "max-h-[200px]"
-                  )}
-                />
-              </div>
-            )}
-
-            <Textarea
-              placeholder="Content"
-              value={formData.content}
-              onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-              className={cn(
-                "bg-[#1E1E1E] border-gray-700 resize-none",
-                isFullscreen ? "min-h-[50vh]" : "min-h-[200px]"
-              )}
-            />
-          </div>
-
-          <div className="flex justify-between items-center pt-4">
+          <div className="flex justify-between">
             <Button
               type="button"
               variant="destructive"
               onClick={handleDelete}
-              className="bg-red-500 hover:bg-red-600"
+              disabled={isLoading}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
+              Delete Note
             </Button>
-
-            <Button 
-              type="submit"
-              className="bg-purple-600 hover:bg-purple-700"
-              disabled={!formData.title || !formData.content}
-            >
-              Save Changes
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
             </Button>
           </div>
         </form>

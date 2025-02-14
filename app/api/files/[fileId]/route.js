@@ -1,68 +1,67 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
+import { GridFSBucket, ObjectId } from 'mongodb';
 
 // Create GridFS bucket
 let bucket;
-const connectToGridFS = async () => {
+const connectToGridFS = async (db) => {
   if (!bucket) {
-    await connectToDatabase();
-    bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucket = new GridFSBucket(db, {
       bucketName: 'uploads'
     });
   }
   return bucket;
 };
 
-export async function GET(req, { params }) {
+export async function GET(request, { params }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const fileId = params.fileId;
+    const { db } = await connectToDatabase();
+    const gridFSBucket = await connectToGridFS(db);
+
+    // Get fileId from params
+    const fileId = params?.fileId;
     if (!fileId) {
       return NextResponse.json({ error: 'No file ID provided' }, { status: 400 });
     }
 
-    // Connect to GridFS
-    const gridFSBucket = await connectToGridFS();
+    const file = await gridFSBucket.find({ _id: new ObjectId(fileId) }).next();
 
-    // Find file info
-    const files = await mongoose.connection.db
-      .collection('uploads.files')
-      .find({ _id: new mongoose.Types.ObjectId(fileId) })
-      .toArray();
-
-    if (!files.length) {
+    if (!file) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    const file = files[0];
+    // Verify the file belongs to the user
+    if (file.metadata?.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // Create download stream
-    const downloadStream = gridFSBucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
+    const downloadStream = gridFSBucket.openDownloadStream(new ObjectId(fileId));
 
-    // Convert stream to buffer
+    // Convert the stream to a buffer
     const chunks = [];
     for await (const chunk of downloadStream) {
       chunks.push(chunk);
     }
     const buffer = Buffer.concat(chunks);
 
-    // Create response with appropriate headers
-    const response = new NextResponse(buffer);
-    response.headers.set('Content-Type', file.contentType);
-    response.headers.set('Content-Disposition', `inline; filename="${file.filename}"`);
-    
-    return response;
+    // Return the file with appropriate headers
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type': file.contentType,
+        'Content-Disposition': `inline; filename="${file.filename}"`,
+      },
+    });
   } catch (error) {
     console.error('Error serving file:', error);
     return NextResponse.json(
-      { error: 'Error serving file: ' + error.message },
+      { error: 'Error serving file' },
       { status: 500 }
     );
   }

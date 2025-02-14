@@ -1,69 +1,90 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CreateNoteDialog } from '@/components/create-note-dialog';
+import { useState } from 'react';
+import CreateNoteDialog from '@/components/create-note-dialog';
 import { NoteCard } from '@/components/note-card';
 import { NoteDetail } from '@/components/note-detail';
-import { RecordingBar } from '@/components/recording-bar';
 import { Sidebar } from '@/components/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import useSWR from 'swr';
+
+const fetcher = (...args) => fetch(...args).then(res => {
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json();
+});
 
 export default function NotesPage() {
-  const [notes, setNotes] = useState([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
 
-  useEffect(() => {
-    fetchNotes();
-  }, [activeFilter]);
-
-  const fetchNotes = async () => {
-    try {
-      const url = new URL('/api/notes', window.location.origin);
-      if (activeFilter === 'favorites') {
-        url.searchParams.append('favorites', 'true');
-      }
-      
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch notes');
-      const data = await response.json();
-      setNotes(data);
-    } catch (error) {
-      console.error('Error fetching notes:', error);
-      toast.error('Failed to load notes');
+  // Use SWR for data fetching with optimistic updates
+  const { data: notes = [], error, mutate } = useSWR(
+    `/api/notes${activeFilter === 'favorites' ? '?favorites=true' : ''}`,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+      onError: (err) => {
+        console.error('Error fetching notes:', err);
+        toast.error('Failed to load notes');
+      },
     }
-  };
+  );
 
-  const handleCreateNote = async (note) => {
+  const handleCreateNote = async (noteData) => {
     try {
+      // Optimistically add the new note to the cache
+      const optimisticNote = {
+        _id: Date.now().toString(),
+        ...noteData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await mutate([optimisticNote, ...notes], false);
+
       const response = await fetch('/api/notes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(note),
+        body: JSON.stringify(noteData),
       });
 
       if (!response.ok) throw new Error('Failed to create note');
 
       const newNote = await response.json();
-      setNotes(prev => [newNote, ...prev]);
+      await mutate();
       setIsCreateDialogOpen(false);
       toast.success('Note created successfully');
     } catch (error) {
       console.error('Error creating note:', error);
       toast.error('Failed to create note');
+      // Revert the optimistic update
+      await mutate();
     }
   };
 
   const handleUpdateNote = async (updatedNote) => {
+    const previousNotes = notes;
+    
     try {
+      // Optimistically update the cache
+      await mutate(
+        notes.map(note => note._id === updatedNote._id ? {
+          ...note,
+          ...updatedNote,
+          updatedAt: new Date().toISOString(),
+        } : note),
+        false
+      );
+
       const response = await fetch(`/api/notes/${updatedNote._id}`, {
         method: 'PUT',
         headers: {
@@ -74,96 +95,81 @@ export default function NotesPage() {
 
       if (!response.ok) throw new Error('Failed to update note');
 
-      const data = await response.json();
-      setNotes(prev => prev.map(note => 
-        note._id === data._id ? data : note
-      ));
+      await mutate();
       setIsDetailOpen(false);
       toast.success('Note updated successfully');
     } catch (error) {
       console.error('Error updating note:', error);
       toast.error('Failed to update note');
+      // Revert the optimistic update
+      await mutate(previousNotes, false);
     }
   };
 
   const handleDeleteNote = async (noteId) => {
+    const previousNotes = notes;
+    
     try {
+      // Optimistically update the cache
+      await mutate(
+        notes.filter(note => note._id !== noteId),
+        false
+      );
+
       const response = await fetch(`/api/notes/${noteId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) throw new Error('Failed to delete note');
 
-      setNotes(prev => prev.filter(note => note._id !== noteId));
-      setSelectedNote(null);
-      setIsDetailOpen(false);
       toast.success('Note deleted successfully');
     } catch (error) {
       console.error('Error deleting note:', error);
       toast.error('Failed to delete note');
+      // Revert the optimistic update
+      await mutate(previousNotes, false);
     }
   };
 
-  const handleFavorite = async (note) => {
+  const handleFavoriteNote = async (note) => {
+    const previousNotes = notes;
+    const updatedNote = { ...note, isFavorite: !note.isFavorite };
+    
     try {
-      const updatedNote = { ...note, isFavorite: !note.isFavorite };
+      // Optimistically update the cache
+      await mutate(
+        notes.map(n => n._id === note._id ? updatedNote : n),
+        false
+      );
+
       const response = await fetch(`/api/notes/${note._id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updatedNote),
+        body: JSON.stringify({ isFavorite: updatedNote.isFavorite }),
       });
 
       if (!response.ok) throw new Error('Failed to update note');
 
-      const data = await response.json();
-      setNotes(prev => prev.map(n => 
-        n._id === data._id ? data : n
-      ));
+      await mutate();
+      toast.success(`Note ${updatedNote.isFavorite ? 'added to' : 'removed from'} favorites`);
     } catch (error) {
       console.error('Error updating note:', error);
       toast.error('Failed to update note');
+      // Revert the optimistic update
+      await mutate(previousNotes, false);
     }
   };
 
-  const handleImageUpload = async (file) => {
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size should be less than 5MB');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Failed to upload image');
-
-      const data = await response.json();
-      handleCreateNote({
-        type: 'image',
-        title: file.name,
-        content: '',
-        imageUrl: data.url,
-      });
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      toast.error('Failed to upload image');
-    }
+  const handleSearch = (e) => {
+    setSearchQuery(e.target.value);
   };
 
-  const filteredNotes = notes.filter(note => {
-    const query = searchQuery.toLowerCase();
-    return (
-      note.title.toLowerCase().includes(query) ||
-      note.content.toLowerCase().includes(query)
-    );
-  });
+  const filteredNotes = notes.filter(note =>
+    note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    note.content.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="flex h-screen bg-[#1E1E1E] text-white overflow-hidden">
@@ -171,89 +177,73 @@ export default function NotesPage() {
       <Sidebar
         activeFilter={activeFilter}
         onFilterChange={setActiveFilter}
+        noteCount={notes.length}
+        favoriteCount={notes.filter(note => note.isFavorite).length}
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-full min-w-0">
+      <div className="flex-1 overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="sticky top-0 bg-[#1E1E1E] border-b border-gray-700 z-10">
-          <div className="max-w-4xl mx-auto w-full px-4 md:px-8 py-4">
-            <div className="flex items-center gap-4 md:ml-0 ml-12">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  type="text"
-                  placeholder="Search notes..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 bg-[#2D2D2D] border-gray-700"
-                />
-              </div>
-              <Button
-                onClick={() => setIsCreateDialogOpen(true)}
-                className="bg-purple-600 hover:bg-purple-700 whitespace-nowrap"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                New Note
-              </Button>
-            </div>
+        <div className="p-4 border-b border-gray-800">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">
+              {activeFilter === 'favorites' ? 'Favorite Notes' : 'All Notes'}
+            </h1>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              New Note
+            </Button>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search notes..."
+              value={searchQuery}
+              onChange={handleSearch}
+              className="pl-10 bg-[#2D2D2D] border-gray-700"
+            />
           </div>
         </div>
 
         {/* Notes Grid */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto w-full px-4 md:px-8 py-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredNotes.map(note => (
-                <NoteCard
-                  key={note._id}
-                  note={note}
-                  onClick={() => {
-                    setSelectedNote(note);
-                    setIsDetailOpen(true);
-                  }}
-                  onDelete={handleDeleteNote}
-                  onFavorite={handleFavorite}
-                />
-              ))}
-              {filteredNotes.length === 0 && (
-                <div className="col-span-2 text-center py-8 text-gray-400">
-                  {activeFilter === 'favorites' 
-                    ? "No favorite notes yet. Star some notes to see them here!"
-                    : searchQuery 
-                      ? "No notes found matching your search."
-                      : "No notes yet. Create one to get started!"
-                  }
-                </div>
-              )}
-            </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredNotes.map(note => (
+              <NoteCard
+                key={note._id}
+                note={note}
+                onClick={() => {
+                  setSelectedNote(note);
+                  setIsDetailOpen(true);
+                }}
+                onDelete={handleDeleteNote}
+                onFavorite={handleFavoriteNote}
+              />
+            ))}
           </div>
         </div>
-
-        {/* Recording Bar */}
-        <RecordingBar
-          onRecordingComplete={handleCreateNote}
-          onImageUpload={handleImageUpload}
-        />
       </div>
 
-      {/* Dialogs */}
+      {/* Create Note Dialog */}
       <CreateNoteDialog
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
         onSubmit={handleCreateNote}
       />
 
-      <NoteDetail
-        note={selectedNote}
-        open={isDetailOpen}
-        onOpenChange={(open) => {
-          setIsDetailOpen(open);
-          if (!open) setSelectedNote(null);
-        }}
-        onUpdate={handleUpdateNote}
-        onDelete={handleDeleteNote}
-      />
+      {/* Note Detail Dialog */}
+      {selectedNote && (
+        <NoteDetail
+          note={selectedNote}
+          open={isDetailOpen}
+          onOpenChange={setIsDetailOpen}
+          onUpdate={handleUpdateNote}
+          onDelete={handleDeleteNote}
+        />
+      )}
     </div>
   );
 }
