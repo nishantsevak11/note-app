@@ -1,228 +1,209 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { FileImage, X, Loader2 } from 'lucide-react';
+import { Star, Trash2, Copy, Pencil, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { toast } from 'sonner';
+import CreateNoteDialog from './create-note-dialog';
+import { useState } from 'react';
 
-export function NoteDetail({ note, open, onOpenChange, onUpdate, onDelete }) {
-  const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    images: [],
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
-
-  // Update form data when note or open state changes
-  useEffect(() => {
-    if (note && open) {
-      setFormData({
-        title: note.title,
-        content: note.content,
-        images: note.images || [],
-      });
-    }
-  }, [note, open]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isLoading || !note) return;
-
-    if (!formData.title.trim() || !formData.content.trim()) {
-      toast.error('Please fill in both title and content');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      await onUpdate({
-        ...note,
-        title: formData.title.trim(),
-        content: formData.content.trim(),
-        images: formData.images,
-      });
-      onOpenChange(false);
-      toast.success('Note updated successfully');
-    } catch (error) {
-      console.error('Error updating note:', error);
-      toast.error('Failed to update note');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+export function NoteDetail({ note, open, onOpenChange, onDelete, onFavorite }) {
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(null);
 
   const handleDelete = async () => {
-    if (isLoading || !note) return;
-
     try {
-      setIsLoading(true);
       await onDelete(note._id);
       onOpenChange(false);
-      toast.success('Note deleted successfully');
     } catch (error) {
       console.error('Error deleting note:', error);
-      toast.error('Failed to delete note');
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file');
-      return;
-    }
-
+  const handleFavorite = async () => {
     try {
-      setUploadingImage(true);
-      const reader = new FileReader();
-      
-      const imageData = await new Promise((resolve, reject) => {
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      setFormData(prev => ({
-        ...prev,
-        images: [...prev.images, {
-          name: file.name,
-          data: imageData,
-          contentType: file.type,
-        }],
-      }));
-      
-      toast.success('Image uploaded successfully');
+      await onFavorite(note);
     } catch (error) {
-      console.error('Error uploading image:', error);
-      toast.error('Failed to upload image');
-    } finally {
-      setUploadingImage(false);
+      console.error('Error updating favorite status:', error);
     }
   };
 
-  const removeImage = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      images: prev.images.filter((_, i) => i !== index),
-    }));
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(note.content);
+      toast.success('Content copied to clipboard');
+    } catch (error) {
+      toast.error('Failed to copy content');
+    }
+  };
+
+  const formatDate = (date) => {
+    return formatDistanceToNow(new Date(date), { addSuffix: true });
+  };
+
+  const handlePreviousImage = (e) => {
+    e.stopPropagation();
+    if (selectedImageIndex > 0) {
+      setSelectedImageIndex(selectedImageIndex - 1);
+    }
+  };
+
+  const handleNextImage = (e) => {
+    e.stopPropagation();
+    if (selectedImageIndex < note.images.length - 1) {
+      setSelectedImageIndex(selectedImageIndex + 1);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl bg-[#2D2D2D] text-white">
-        <DialogHeader>
-          <DialogTitle>Edit Note</DialogTitle>
-          <DialogDescription>
-            Make changes to your note here. Click save when you're done.
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={formData.title}
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Note title"
-              className="bg-[#1E1E1E] border-gray-700"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="content">Content</Label>
-            <Textarea
-              id="content"
-              value={formData.content}
-              onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-              placeholder="Note content"
-              className="h-40 bg-[#1E1E1E] border-gray-700"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Images</Label>
-            <div className="grid grid-cols-2 gap-4">
-              {formData.images.map((image, index) => (
-                <div key={index} className="relative group">
-                  <img
-                    src={image.data}
-                    alt={image.name}
-                    className="w-full h-32 object-cover rounded-md"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => removeImage(index)}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-4">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[625px] bg-[#1E1E1E] text-white">
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-2xl font-semibold">{note.title}</h2>
+            <div className="flex gap-2">
               <Button
-                type="button"
-                variant="outline"
-                onClick={() => document.getElementById('image-upload').click()}
-                disabled={uploadingImage}
+                variant="ghost"
+                size="icon"
+                className="text-yellow-500 hover:text-yellow-400"
+                onClick={handleFavorite}
               >
-                {uploadingImage ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <FileImage className="w-4 h-4 mr-2" />
-                )}
-                Add Image
+                <Star className={note.isFavorite ? 'fill-current' : ''} />
               </Button>
-              <input
-                id="image-upload"
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-white"
+                onClick={copyToClipboard}
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-white"
+                onClick={() => setIsEditDialogOpen(true)}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-white"
+                onClick={handleDelete}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-white"
+                onClick={() => onOpenChange(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
             </div>
           </div>
 
-          <div className="flex justify-between">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={isLoading}
-            >
-              Delete Note
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
+          <div className="space-y-4">
+            <p className="text-gray-300 whitespace-pre-wrap">{note.content}</p>
+
+            {note.images && note.images.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                {note.images.map((image, index) => (
+                  <div
+                    key={index}
+                    className="relative group cursor-pointer"
+                    onClick={() => setSelectedImageIndex(index)}
+                  >
+                    <img
+                      src={image.data}
+                      alt={image.name}
+                      className="w-full aspect-square object-cover rounded-lg transition-transform group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-opacity rounded-lg" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="text-sm text-gray-500">
+              Last updated {formatDate(note.updatedAt || note.createdAt)}
+            </div>
           </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <CreateNoteDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        initialNote={note}
+        mode="edit"
+        onSubmit={async (updatedNote) => {
+          try {
+            await onFavorite({ ...note, ...updatedNote });
+            setIsEditDialogOpen(false);
+          } catch (error) {
+            console.error('Error updating note:', error);
+          }
+        }}
+      />
+
+      {selectedImageIndex !== null && note.images && (
+        <Dialog 
+          open={selectedImageIndex !== null} 
+          onOpenChange={() => setSelectedImageIndex(null)}
+        >
+          <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none overflow-hidden">
+            <div className="relative w-full h-full flex items-center justify-center">
+              <img
+                src={note.images[selectedImageIndex].data}
+                alt={note.images[selectedImageIndex].name}
+                className="max-w-full max-h-[90vh] object-contain"
+              />
+              
+              {/* Navigation buttons */}
+              {selectedImageIndex > 0 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute left-4 text-white bg-black/50 hover:bg-black/75"
+                  onClick={handlePreviousImage}
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </Button>
+              )}
+              
+              {selectedImageIndex < note.images.length - 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-4 text-white bg-black/50 hover:bg-black/75"
+                  onClick={handleNextImage}
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </Button>
+              )}
+
+              {/* Close button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/75"
+                onClick={() => setSelectedImageIndex(null)}
+              >
+                <X className="w-6 h-6" />
+              </Button>
+
+              {/* Image counter */}
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white bg-black/50 px-4 py-2 rounded-full">
+                {selectedImageIndex + 1} / {note.images.length}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }

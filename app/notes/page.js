@@ -131,34 +131,32 @@ export default function NotesPage() {
     }
   };
 
-  const handleFavoriteNote = async (note) => {
-    const previousNotes = notes;
-    const updatedNote = { ...note, isFavorite: !note.isFavorite };
-    
+  const handleFavorite = async (note) => {
     try {
       // Optimistically update the cache
-      await mutate(
-        notes.map(n => n._id === note._id ? updatedNote : n),
-        false
+      const updatedNotes = notes.map(n => 
+        n._id === note._id ? { ...n, isFavorite: !n.isFavorite } : n
       );
+      await mutate(updatedNotes, false);
 
       const response = await fetch(`/api/notes/${note._id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ isFavorite: updatedNote.isFavorite }),
+        body: JSON.stringify({
+          isFavorite: !note.isFavorite,
+        }),
       });
 
       if (!response.ok) throw new Error('Failed to update note');
 
-      await mutate();
-      toast.success(`Note ${updatedNote.isFavorite ? 'added to' : 'removed from'} favorites`);
+      await mutate(); // Revalidate to ensure we have the latest data
+      toast.success(`Note ${!note.isFavorite ? 'added to' : 'removed from'} favorites`);
     } catch (error) {
-      console.error('Error updating note:', error);
-      toast.error('Failed to update note');
-      // Revert the optimistic update
-      await mutate(previousNotes, false);
+      console.error('Error updating favorite status:', error);
+      toast.error('Failed to update favorite status');
+      await mutate(); // Revert optimistic update
     }
   };
 
@@ -220,7 +218,7 @@ export default function NotesPage() {
                   setIsDetailOpen(true);
                 }}
                 onDelete={handleDeleteNote}
-                onFavorite={handleFavoriteNote}
+                onFavorite={handleFavorite}
               />
             ))}
           </div>

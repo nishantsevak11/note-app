@@ -59,7 +59,12 @@ export function NoteCard({ note, onClick, onDelete, onFavorite }) {
       >
         <div className="space-y-2">
           <div className="flex justify-between items-start">
-            <h3 className="text-lg font-semibold text-white truncate pr-8">{note.title}</h3>
+            <div className="flex items-center gap-2 flex-1">
+              <h3 className="text-lg font-semibold text-white truncate">{note.title}</h3>
+              {note.images && note.images.length > 0 && (
+                <FileImage className="w-4 h-4 text-blue-400" />
+              )}
+            </div>
             <Button
               variant="ghost"
               size="icon"
@@ -71,6 +76,25 @@ export function NoteCard({ note, onClick, onDelete, onFavorite }) {
           </div>
 
           <p className="text-gray-400 line-clamp-3">{note.content}</p>
+
+          {note.images && note.images.length > 0 && (
+            <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
+              {note.images.slice(0, 3).map((image, index) => (
+                <div key={index} className="relative flex-shrink-0">
+                  <img
+                    src={image.data}
+                    alt={image.name}
+                    className="w-16 h-16 object-cover rounded"
+                  />
+                  {note.images.length > 3 && index === 2 && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded">
+                      <span className="text-white text-sm">+{note.images.length - 3}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="flex justify-between items-center mt-4">
             <span className="text-sm text-gray-500">{formatDate(note.updatedAt || note.createdAt)}</span>
@@ -103,20 +127,21 @@ export function NoteCard({ note, onClick, onDelete, onFavorite }) {
             </div>
           </div>
         </div>
-
-        {note.images?.length > 0 && (
-          <div className="absolute top-0 right-0 w-16 h-16 -mr-8 -mt-8 bg-blue-500 rotate-45">
-            <FileImage className="absolute bottom-2 left-2 w-4 h-4 text-white transform -rotate-45" />
-          </div>
-        )}
       </Card>
 
-      <CreateNoteDialog 
+      <CreateNoteDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         initialNote={note}
         mode="edit"
-        onSubmit={onClick}
+        onSubmit={async (updatedNote) => {
+          try {
+            await onClick(updatedNote);
+            setIsDialogOpen(false);
+          } catch (error) {
+            console.error('Error updating note:', error);
+          }
+        }}
       />
     </>
   );
