@@ -36,11 +36,9 @@ export async function PUT(req, { params }) {
     }
 
     await dbConnect();
-    const { noteId } = params;
     const data = await req.json();
+    const note = await Note.findById(params.noteId);
 
-    // Find note and verify ownership
-    const note = await Note.findById(noteId);
     if (!note) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
@@ -49,11 +47,36 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Update the note
+    // Prepare update data
+    const updateData = {
+      ...data,
+      updatedAt: new Date()
+    };
+
+    // If images are present in the update, ensure they have all required fields
+    if (updateData.images) {
+      if (!Array.isArray(updateData.images)) {
+        return NextResponse.json({ error: 'Images must be an array' }, { status: 400 });
+      }
+      
+      // Validate each image
+      updateData.images = updateData.images.map(image => ({
+        name: image.name || 'Untitled',
+        type: image.type || 'image/jpeg', // Provide default type if missing
+        data: image.data
+      }));
+    }
+
+    // Update the note with validation
     const updatedNote = await Note.findByIdAndUpdate(
-      noteId,
-      { ...data },
-      { new: true, runValidators: true }
+      params.noteId,
+      updateData,
+      { 
+        new: true,
+        runValidators: true,
+        // Only update fields that are present in the request
+        omitUndefined: true 
+      }
     );
 
     return NextResponse.json(updatedNote);

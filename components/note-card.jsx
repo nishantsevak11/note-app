@@ -35,6 +35,21 @@ export function NoteCard({ note, onClick, onDelete, onFavorite }) {
     setIsDialogOpen(true);
   };
 
+  const handleUpdate = async (updatedNote) => {
+    try {
+      const noteToUpdate = {
+        ...updatedNote,
+        _id: note._id
+      };
+      await onClick(noteToUpdate);
+      setIsDialogOpen(false);
+      toast.success('Note updated successfully');
+    } catch (error) {
+      console.error('Error updating note:', error);
+      toast.error('Failed to update note');
+    }
+  };
+
   const copyToClipboard = async (e) => {
     e.stopPropagation();
     try {
@@ -134,14 +149,7 @@ export function NoteCard({ note, onClick, onDelete, onFavorite }) {
         onOpenChange={setIsDialogOpen}
         initialNote={note}
         mode="edit"
-        onSubmit={async (updatedNote) => {
-          try {
-            await onClick(updatedNote);
-            setIsDialogOpen(false);
-          } catch (error) {
-            console.error('Error updating note:', error);
-          }
-        }}
+        onSubmit={handleUpdate}
       />
     </>
   );

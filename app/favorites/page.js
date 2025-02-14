@@ -176,7 +176,8 @@ export default function FavoritesPage() {
             note={selectedNote}
             open={isDetailOpen}
             onOpenChange={setIsDetailOpen}
-            onSave={handleUpdateNote}
+            onUpdate={handleUpdateNote}
+            onDelete={handleDeleteNote}
             onFavorite={handleToggleFavorite}
           />
         )}

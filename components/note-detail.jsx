@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import CreateNoteDialog from './create-note-dialog';
 import { useState } from 'react';
 
-export function NoteDetail({ note, open, onOpenChange, onDelete, onFavorite }) {
+export function NoteDetail({ note, open, onOpenChange, onDelete, onFavorite, onUpdate, onClick }) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(null);
 
@@ -142,10 +142,16 @@ export function NoteDetail({ note, open, onOpenChange, onDelete, onFavorite }) {
         mode="edit"
         onSubmit={async (updatedNote) => {
           try {
-            await onFavorite({ ...note, ...updatedNote });
+            const noteToUpdate = {
+              ...updatedNote,
+              _id: note._id
+            };
+            await onUpdate(noteToUpdate);
             setIsEditDialogOpen(false);
+            toast.success('Note updated successfully');
           } catch (error) {
             console.error('Error updating note:', error);
+            toast.error('Failed to update note');
           }
         }}
       />
