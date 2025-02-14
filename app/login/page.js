@@ -52,6 +52,21 @@ export default function LoginPage() {
     }));
   };
 
+  const handleGoogleLogin = async () => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const callbackUrl = searchParams.get('callbackUrl') || '/notes';
+      
+      await signIn('google', {
+        callbackUrl,
+        redirect: true,
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('Failed to login with Google');
+    }
+  };
+
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -106,6 +121,13 @@ export default function LoginPage() {
               ) : (
                 'Sign In'
               )}
+            </Button>
+            <Button
+              type="button"
+              className="w-full"
+              onClick={handleGoogleLogin}
+            >
+              Sign in with Google
             </Button>
             <p className="text-sm text-center text-muted-foreground">
               Don't have an account?{' '}

@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Note Taking Application
 
-## Getting Started
+A modern note-taking application built with Next.js, MongoDB, and NextAuth.js.
 
-First, run the development server:
+## Running on CodeSandbox
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. **Fork the Repository**
+   - Go to CodeSandbox
+   - Click "Create Sandbox"
+   - Choose "Import Project"
+   - Paste your GitHub repository URL
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Environment Variables**
+   Add these environment variables in CodeSandbox:
+   ```
+   MONGODB_URI=your_mongodb_uri
+   NEXTAUTH_SECRET=your_secret_key
+   NEXTAUTH_URL=https://your-sandbox-url.csb.app
+   ```
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+3. **MongoDB Setup**
+   - Create a free MongoDB Atlas cluster
+   - Add `0.0.0.0/0` to IP whitelist in MongoDB Atlas
+   - Copy your connection string and add it to environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. **Start the Application**
+   The application will automatically start in development mode.
 
-## Learn More
+## Features
 
-To learn more about Next.js, take a look at the following resources:
+- User Authentication
+- Create, Edit, Delete Notes
+- Image Upload Support
+- Real-time Search
+- Sort Notes by Different Criteria
+- Responsive Design
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Next.js 14
+- MongoDB with Mongoose
+- NextAuth.js for Authentication
+- Tailwind CSS for Styling
+- SWR for Data Fetching
 
-## Deploy on Vercel
+## Common Issues & Solutions
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **MongoDB Connection Issues**
+   - Verify MongoDB URI is correct
+   - Check IP whitelist in MongoDB Atlas
+   - Ensure environment variables are set correctly
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. **Authentication Issues**
+   - Make sure NEXTAUTH_URL matches your sandbox URL
+   - Verify NEXTAUTH_SECRET is set
+   - Check MongoDB connection
+
+3. **Image Upload Issues**
+   - Check if images are within size limits
+   - Verify file types are supported
+
+## Need Help?
+
+If you encounter any issues:
+1. Check the console for error messages
+2. Verify all environment variables are set
+3. Ensure MongoDB connection is working
+4. Check if all dependencies are installed correctly
